@@ -21,9 +21,11 @@ async def main() -> None:
         max_companies: int = actor_input.get('maxCompanies', 50)
         proxy_country: str = actor_input.get('proxyCountryCode', 'NL')
 
-        proxy_configuration = await Actor.create_proxy_configuration(
-            country_code=proxy_country or None,
-        )
+        proxy_configuration = None
+        if Actor.configuration.is_at_home:
+            proxy_configuration = await Actor.create_proxy_configuration(
+                country_code=proxy_country or None,
+            )
 
         crawler = PlaywrightCrawler(
             max_requests_per_crawl=max_pages + max_companies,
