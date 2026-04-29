@@ -26,7 +26,7 @@ async def main() -> None:
             )
 
         http_client = CurlImpersonateHttpClient(
-            async_session_kwargs={'impersonate': 'chrome131'},
+            impersonate='chrome131',
         )
         crawler = BeautifulSoupCrawler(
             http_client=http_client,
