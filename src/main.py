@@ -6,7 +6,7 @@ from urllib.parse import urlencode
 from apify import Actor
 from crawlee import Request
 from crawlee.crawlers import PlaywrightCrawler, PlaywrightCrawlingContext
-from crawlee.crawlers._playwright._playwright_crawler import PlaywrightPreNavigationContext
+from crawlee.crawlers._playwright._playwright_crawler import PlaywrightPreNavCrawlingContext
 
 SEARCH_BASE = 'https://nl.kompass.com/s/'
 LABEL_LISTING = 'LISTING'
@@ -35,7 +35,7 @@ async def main() -> None:
         if Actor.configuration.is_at_home:
             proxy_configuration = await Actor.create_proxy_configuration()
 
-        async def stealth_hook(context: PlaywrightPreNavigationContext) -> None:
+        async def stealth_hook(context: PlaywrightPreNavCrawlingContext) -> None:
             await context.page.add_init_script(STEALTH_SCRIPT)
 
         crawler = PlaywrightCrawler(
