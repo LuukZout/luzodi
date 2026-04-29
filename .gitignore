@@ -12,6 +12,9 @@ build/
 # Apify lokale opslag (bevat crawl-data, geen broncode)
 storage/
 
+# Virtual environment
+.venv/
+
 # Environment
 .env
 .env.local
