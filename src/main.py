@@ -7,7 +7,9 @@ from apify import Actor
 from bs4 import BeautifulSoup
 from crawlee import ConcurrencySettings, Request
 from crawlee.crawlers import PlaywrightCrawler, PlaywrightCrawlingContext, PlaywrightPreNavCrawlingContext
-from playwright_stealth import stealth_async
+from playwright_stealth import Stealth
+
+_stealth = Stealth()
 
 SEARCH_BASE = 'https://nl.kompass.com/s/'
 LABEL_LISTING = 'LISTING'
@@ -41,7 +43,7 @@ async def main() -> None:
 
         @crawler.pre_navigation_hook
         async def before_nav(context: PlaywrightPreNavCrawlingContext) -> None:
-            await stealth_async(context.page)
+            await _stealth.apply_stealth_async(context.page.context)
 
         @crawler.router.handler(label=LABEL_LISTING)
         async def listing_handler(context: PlaywrightCrawlingContext) -> None:
