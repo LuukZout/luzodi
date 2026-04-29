@@ -6,22 +6,8 @@ from urllib.parse import urlencode
 from apify import Actor
 from crawlee import Request
 from crawlee.crawlers import PlaywrightCrawler, PlaywrightCrawlingContext
-from crawlee.crawlers._playwright._playwright_crawler import PlaywrightPreNavCrawlingContext
-
 SEARCH_BASE = 'https://nl.kompass.com/s/'
 LABEL_LISTING = 'LISTING'
-
-# Injecteer in elke pagina vóór navigatie om bot-detectie te omzeilen
-STEALTH_SCRIPT = """
-    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-    delete navigator.__proto__.webdriver;
-    Object.defineProperty(navigator, 'languages', { get: () => ['nl-NL', 'nl', 'en-US', 'en'] });
-    Object.defineProperty(navigator, 'plugins', {
-        get: () => { const p = [1,2,3,4,5]; p.item = () => null; p.namedItem = () => null; return p; }
-    });
-    window.chrome = { runtime: {}, loadTimes: () => {}, csi: () => {}, app: {} };
-    Object.defineProperty(Notification, 'permission', { get: () => 'default' });
-"""
 
 
 async def main() -> None:
@@ -35,15 +21,11 @@ async def main() -> None:
         if Actor.configuration.is_at_home:
             proxy_configuration = await Actor.create_proxy_configuration()
 
-        async def stealth_hook(context: PlaywrightPreNavCrawlingContext) -> None:
-            await context.page.add_init_script(STEALTH_SCRIPT)
-
         crawler = PlaywrightCrawler(
             max_requests_per_crawl=max_pages,
             proxy_configuration=proxy_configuration,
             browser_type='chromium',
             max_request_retries=5,
-            pre_navigation_hooks=[stealth_hook],
         )
 
         @crawler.router.handler(label=LABEL_LISTING)
