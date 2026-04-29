@@ -4,7 +4,7 @@ import asyncio
 from urllib.parse import urlencode
 
 from apify import Actor
-from crawlee import Request
+from crawlee import ConcurrencySettings, Request
 from crawlee.crawlers import BeautifulSoupCrawler, BeautifulSoupCrawlingContext
 from crawlee.http_clients import CurlImpersonateHttpClient
 
@@ -32,7 +32,13 @@ async def main() -> None:
             http_client=http_client,
             max_requests_per_crawl=max_pages,
             proxy_configuration=proxy_configuration,
-            max_request_retries=3,
+            max_request_retries=10,
+            max_session_rotations=20,
+            concurrency_settings=ConcurrencySettings(
+                min_concurrency=1,
+                max_concurrency=1,
+                desired_concurrency=1,
+            ),
         )
 
         @crawler.router.handler(label=LABEL_LISTING)
