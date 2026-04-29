@@ -4,5 +4,6 @@
   "title": "Kompass B2B Contact Scraper",
   "description": "Scrapt bedrijfscontactgegevens van nl.kompass.com: naam, adres, telefoon, e-mail, website, sector en meer.",
   "version": "0.1",
-  "input": "./input_schema.json"
+  "input": "./input_schema.json",
+  "readme": "../README.md"
 }
