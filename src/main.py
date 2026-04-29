@@ -19,7 +19,9 @@ async def main() -> None:
 
         proxy_configuration = None
         if Actor.configuration.is_at_home:
-            proxy_configuration = await Actor.create_proxy_configuration()
+            proxy_configuration = await Actor.create_proxy_configuration(
+                groups=['RESIDENTIAL'],
+            )
 
         crawler = PlaywrightCrawler(
             max_requests_per_crawl=max_pages,
