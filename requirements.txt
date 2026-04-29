@@ -1,2 +1,2 @@
 apify~=3.0
-crawlee[playwright]~=1.6
+crawlee[curl_cffi]~=1.6
