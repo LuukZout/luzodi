@@ -4,9 +4,10 @@ import asyncio
 from urllib.parse import urlencode
 
 from apify import Actor
+from bs4 import BeautifulSoup
 from crawlee import ConcurrencySettings, Request
-from crawlee.crawlers import BeautifulSoupCrawler, BeautifulSoupCrawlingContext
-from crawlee.http_clients import CurlImpersonateHttpClient
+from crawlee.crawlers import PlaywrightCrawler, PlaywrightCrawlingContext, PlaywrightPreNavCrawlingContext
+from playwright_stealth import stealth_async
 
 SEARCH_BASE = 'https://nl.kompass.com/s/'
 LABEL_LISTING = 'LISTING'
@@ -25,11 +26,8 @@ async def main() -> None:
                 groups=['RESIDENTIAL'],
             )
 
-        http_client = CurlImpersonateHttpClient(
-            impersonate='chrome131',
-        )
-        crawler = BeautifulSoupCrawler(
-            http_client=http_client,
+        crawler = PlaywrightCrawler(
+            headless=True,
             max_requests_per_crawl=max_pages,
             proxy_configuration=proxy_configuration,
             max_request_retries=10,
@@ -41,10 +39,15 @@ async def main() -> None:
             ),
         )
 
+        @crawler.pre_navigation_hook
+        async def before_nav(context: PlaywrightPreNavCrawlingContext) -> None:
+            await stealth_async(context.page)
+
         @crawler.router.handler(label=LABEL_LISTING)
-        async def listing_handler(context: BeautifulSoupCrawlingContext) -> None:
-            soup = context.soup
+        async def listing_handler(context: PlaywrightCrawlingContext) -> None:
             Actor.log.info(f'Pagina: {context.request.url}')
+            content = await context.page.content()
+            soup = BeautifulSoup(content, 'lxml')
 
             cards = soup.select('div.prod_list')
             if not cards:
@@ -53,12 +56,12 @@ async def main() -> None:
 
             companies = []
             for card in cards:
-                name_el  = card.select_one('span.titleSpan')
-                link_el  = card.select_one('div.col-title a[href*="/c/"]')
-                place_el = card.select_one('span.placeText')
-                phone_el = card.select_one('input[id^="freePhone--"]')
-                web_el   = card.select_one('div.companyWeb a')
-                desc_el  = card.select_one('p.product-summary span.text')
+                name_el    = card.select_one('span.titleSpan')
+                link_el    = card.select_one('div.col-title a[href*="/c/"]')
+                place_el   = card.select_one('span.placeText')
+                phone_el   = card.select_one('input[id^="freePhone--"]')
+                web_el     = card.select_one('div.companyWeb a')
+                desc_el    = card.select_one('p.product-summary span.text')
                 sector_els = card.select('ul li')
 
                 location = place_el.get_text(strip=True) if place_el else ''

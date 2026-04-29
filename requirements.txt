@@ -1,3 +1,3 @@
 apify~=3.0
-crawlee[curl-impersonate,beautifulsoup]~=1.6
-curl_cffi>=0.7.0
+crawlee[playwright,beautifulsoup]~=1.6
+playwright-stealth>=1.0.0
