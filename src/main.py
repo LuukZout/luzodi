@@ -5,7 +5,8 @@ from urllib.parse import urlencode
 
 from apify import Actor
 from crawlee import Request
-from crawlee.crawlers import CurlImpersonateCrawler, CurlImpersonateCrawlingContext
+from crawlee.crawlers import BeautifulSoupCrawler, BeautifulSoupCrawlingContext
+from crawlee.http_clients import CurlImpersonateHttpClient
 
 SEARCH_BASE = 'https://nl.kompass.com/s/'
 LABEL_LISTING = 'LISTING'
@@ -24,15 +25,18 @@ async def main() -> None:
                 groups=['RESIDENTIAL'],
             )
 
-        crawler = CurlImpersonateCrawler(
-            impersonate='chrome131',
+        http_client = CurlImpersonateHttpClient(
+            async_session_kwargs={'impersonate': 'chrome131'},
+        )
+        crawler = BeautifulSoupCrawler(
+            http_client=http_client,
             max_requests_per_crawl=max_pages,
             proxy_configuration=proxy_configuration,
             max_request_retries=3,
         )
 
         @crawler.router.handler(label=LABEL_LISTING)
-        async def listing_handler(context: CurlImpersonateCrawlingContext) -> None:
+        async def listing_handler(context: BeautifulSoupCrawlingContext) -> None:
             soup = context.soup
             Actor.log.info(f'Pagina: {context.request.url}')
 
