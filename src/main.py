@@ -9,7 +9,6 @@ from crawlee.crawlers import PlaywrightCrawler, PlaywrightCrawlingContext
 
 SEARCH_BASE = 'https://nl.kompass.com/s/'
 LABEL_LISTING = 'LISTING'
-LABEL_DETAIL = 'DETAIL'
 
 
 async def main() -> None:
@@ -18,7 +17,6 @@ async def main() -> None:
         search_query: str = actor_input.get('searchQuery', '')
         country: str = actor_input.get('country', 'NL')
         max_pages: int = actor_input.get('maxPages', 5)
-        max_companies: int = actor_input.get('maxCompanies', 50)
         proxy_country: str = actor_input.get('proxyCountryCode', 'NL')
 
         proxy_configuration = None
@@ -28,7 +26,7 @@ async def main() -> None:
             )
 
         crawler = PlaywrightCrawler(
-            max_requests_per_crawl=max_pages + max_companies,
+            max_requests_per_crawl=max_pages,
             proxy_configuration=proxy_configuration,
             browser_type='chromium',
         )
@@ -36,136 +34,54 @@ async def main() -> None:
         @crawler.router.handler(label=LABEL_LISTING)
         async def listing_handler(context: PlaywrightCrawlingContext) -> None:
             page = context.page
-            Actor.log.info(f'Zoekresultaten: {context.request.url}')
+            Actor.log.info(f'Pagina: {context.request.url}')
 
             try:
-                await page.wait_for_selector(
-                    '.kpdn-SerpCard, [data-cy="company-card"], .company-result',
-                    timeout=20_000,
-                )
+                await page.wait_for_selector('div.prod_list', timeout=20_000)
             except Exception:
-                Actor.log.warning('Geen bedrijfskaarten gevonden — controleer selector na testrun')
+                Actor.log.warning('Geen bedrijfskaarten gevonden op deze pagina')
                 return
 
-            links: list[str] = await page.eval_on_selector_all(
-                '.kpdn-SerpCard a[href*="/c/"], [data-cy="company-card"] a[href*="/c/"], a.company-name[href*="/c/"]',
-                'els => [...new Set(els.map(el => el.href))]',
-            )
+            companies = await page.eval_on_selector_all('div.prod_list', '''
+                cards => cards.map(card => {
+                    const nameEl   = card.querySelector('span.titleSpan');
+                    const linkEl   = card.querySelector('div.col-title a[href*="/c/"]');
+                    const placeEl  = card.querySelector('span.placeText');
+                    const phoneEl  = card.querySelector('input[id^="freePhone--"]');
+                    const webEl    = card.querySelector('div.companyWeb a');
+                    const descEl   = card.querySelector('p.product-summary span.text');
+                    const sectors  = card.querySelectorAll('ul li');
 
-            if not links:
-                links = await page.eval_on_selector_all(
-                    'a[href*="/c/"]',
-                    'els => [...new Set(els.map(el => el.href))]',
-                )
+                    const location = placeEl ? placeEl.textContent.trim() : '';
+                    const parts    = location.split(' - ');
 
-            Actor.log.info(f'{len(links)} bedrijven gevonden op deze pagina')
-            await context.add_requests(
-                [Request.from_url(link, label=LABEL_DETAIL) for link in links]
-            )
+                    let url = linkEl ? linkEl.getAttribute('href') : '';
+                    if (url && !url.startsWith('http')) url = 'https://nl.kompass.com' + url;
 
-            next_link = await page.query_selector(
-                'a[rel="next"], a.pagination__next, a[aria-label="Volgende"], .pagination a:last-child'
-            )
+                    return {
+                        companyName:  nameEl  ? nameEl.textContent.trim()        : '',
+                        url:          url,
+                        city:         parts[0] ? parts[0].trim()                 : '',
+                        country:      parts[1] ? parts[1].trim()                 : '',
+                        phone:        phoneEl ? phoneEl.value                    : '',
+                        website:      webEl   ? webEl.getAttribute('href')       : '',
+                        description:  descEl  ? descEl.textContent.trim()        : '',
+                        sectors:      Array.from(sectors).map(li => li.textContent.trim()).filter(Boolean).join(', '),
+                    };
+                })
+            ''')
+
+            Actor.log.info(f'{len(companies)} bedrijven gevonden')
+            await Actor.push_data(companies)
+
+            next_link = await page.query_selector('a[rel="next"]')
             if next_link:
-                next_url = await next_link.get_attribute('href')
+                next_url = await next_link.get_attribute('href') or ''
                 if next_url and not next_url.startswith('http'):
                     next_url = f'https://nl.kompass.com{next_url}'
                 if next_url:
                     Actor.log.info(f'Volgende pagina: {next_url}')
                     await context.add_requests([Request.from_url(next_url, label=LABEL_LISTING)])
-
-        @crawler.router.handler(label=LABEL_DETAIL)
-        async def detail_handler(context: PlaywrightCrawlingContext) -> None:
-            page = context.page
-            url = context.request.url
-            Actor.log.info(f'Bedrijfspagina: {url}')
-
-            await page.wait_for_load_state('domcontentloaded', timeout=20_000)
-
-            async def text(selector: str) -> str:
-                el = await page.query_selector(selector)
-                if not el:
-                    return ''
-                return (await el.inner_text()).strip()
-
-            async def attr(selector: str, attribute: str) -> str:
-                el = await page.query_selector(selector)
-                if not el:
-                    return ''
-                return (await el.get_attribute(attribute) or '').strip()
-
-            company_name = await text(
-                'h1[itemprop="name"], h1.company-name, h1.kpdn-Company-name, h1'
-            )
-            address = await text(
-                '[itemprop="streetAddress"], .address-street, .kpdn-Address-street'
-            )
-            city = await text(
-                '[itemprop="addressLocality"], .address-city, .kpdn-Address-city'
-            )
-            postal_code = await text(
-                '[itemprop="postalCode"], .address-postal, .kpdn-Address-postal'
-            )
-            country_val = await text(
-                '[itemprop="addressCountry"], .address-country, .kpdn-Address-country'
-            )
-            phone = await text('[itemprop="telephone"], .tel, a[href^="tel:"]')
-            if phone.startswith('tel:'):
-                phone = phone[4:]
-
-            website = await attr(
-                'a[itemprop="url"], a.kpdn-Company-website, a[data-cy="company-website"]',
-                'href',
-            )
-
-            email = ''
-            email_el = await page.query_selector('a[href^="mailto:"]')
-            if email_el:
-                href = await email_el.get_attribute('href') or ''
-                email = href.replace('mailto:', '').split('?')[0].strip()
-            else:
-                reveal_btn = await page.query_selector(
-                    'button[data-cy="reveal-email"], button.reveal-email, [class*="showEmail"]'
-                )
-                if reveal_btn:
-                    try:
-                        await reveal_btn.click()
-                        await page.wait_for_timeout(1_500)
-                        email_el = await page.query_selector('a[href^="mailto:"]')
-                        if email_el:
-                            href = await email_el.get_attribute('href') or ''
-                            email = href.replace('mailto:', '').split('?')[0].strip()
-                    except Exception:
-                        pass
-
-            description = await text(
-                '[itemprop="description"], .company-description, .kpdn-Company-description'
-            )
-            sector = await text(
-                '.sector-label, .kpdn-Activity-label, [data-cy="activity-label"]'
-            )
-            employees = await text(
-                '[itemprop="numberOfEmployees"], .employees-count, .kpdn-Company-employees'
-            )
-            revenue = await text(
-                '.revenue, .kpdn-Company-revenue, [data-cy="company-revenue"]'
-            )
-
-            await Actor.push_data({
-                'companyName': company_name,
-                'url': url,
-                'address': address,
-                'city': city,
-                'postalCode': postal_code,
-                'country': country_val or country,
-                'phone': phone,
-                'email': email,
-                'website': website,
-                'description': description,
-                'sector': sector,
-                'employees': employees,
-                'revenue': revenue,
-            })
 
         params: dict[str, str] = {}
         if search_query:
