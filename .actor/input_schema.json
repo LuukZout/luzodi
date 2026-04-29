@@ -6,35 +6,22 @@
     "searchQuery": {
       "title": "Zoekterm",
       "type": "string",
-      "description": "Trefwoord, sector of bedrijfsnaam om op te zoeken (bijv. 'software', 'bouw', 'accountant').",
+      "description": "Trefwoord, sector of bedrijfsnaam (bijv. 'software', 'bouw', 'accountant').",
       "editor": "textfield",
       "default": ""
     },
-    "country": {
-      "title": "Land (ISO-code)",
+    "countries": {
+      "title": "Landen (ISO-codes)",
       "type": "string",
-      "description": "ISO-landcode om resultaten te filteren (bijv. NL, BE, DE).",
+      "description": "Komma-gescheiden ISO-landcodes (bijv. NL, NL,BE, DE).",
       "editor": "textfield",
       "default": "NL"
     },
     "maxPages": {
-      "title": "Max zoekresultaat-pagina's",
+      "title": "Max pagina's",
       "type": "integer",
       "description": "Maximum aantal zoekresultaat-pagina's om te crawlen.",
       "default": 5
-    },
-    "maxCompanies": {
-      "title": "Max bedrijven",
-      "type": "integer",
-      "description": "Maximum aantal bedrijfsprofielen om te scrapen.",
-      "default": 50
-    },
-    "proxyCountryCode": {
-      "title": "Proxy landcode",
-      "type": "string",
-      "description": "Landcode voor de Apify proxy (bijv. NL). Leeg laat Apify automatisch kiezen.",
-      "editor": "textfield",
-      "default": "NL"
     }
   },
   "required": []
