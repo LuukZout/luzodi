@@ -1,2 +1,2 @@
-apify~=2.0
-crawlee[playwright]~=0.6
+apify~=3.0
+crawlee[playwright]~=1.6

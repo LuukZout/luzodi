@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import asyncio
-import re
 from urllib.parse import urlencode
 
 from apify import Actor
+from crawlee import Request
 from crawlee.crawlers import PlaywrightCrawler, PlaywrightCrawlingContext
 
 SEARCH_BASE = 'https://nl.kompass.com/s/'
@@ -25,47 +25,42 @@ async def main() -> None:
             country_code=proxy_country or None,
         )
 
-        # max_requests_per_crawl = listing pages + company detail pages
         crawler = PlaywrightCrawler(
             max_requests_per_crawl=max_pages + max_companies,
             proxy_configuration=proxy_configuration,
             browser_type='chromium',
         )
 
-        @crawler.router.handler(LABEL_LISTING)
+        @crawler.router.handler(label=LABEL_LISTING)
         async def listing_handler(context: PlaywrightCrawlingContext) -> None:
             page = context.page
             Actor.log.info(f'Zoekresultaten: {context.request.url}')
 
-            # Wacht op bedrijfskaarten — pas selector aan na eerste testrun
             try:
                 await page.wait_for_selector(
                     '.kpdn-SerpCard, [data-cy="company-card"], .company-result',
                     timeout=20_000,
                 )
             except Exception:
-                Actor.log.warning('Geen bedrijfskaarten gevonden op deze pagina — controleer selector')
+                Actor.log.warning('Geen bedrijfskaarten gevonden — controleer selector na testrun')
                 return
 
-            # Verzamel alle bedrijfsprofiel-links op deze pagina
             links: list[str] = await page.eval_on_selector_all(
-                # Kompass gebruikt doorgaans een <a> met de bedrijfsnaam als titelelement
                 '.kpdn-SerpCard a[href*="/c/"], [data-cy="company-card"] a[href*="/c/"], a.company-name[href*="/c/"]',
                 'els => [...new Set(els.map(el => el.href))]',
             )
 
             if not links:
-                # Fallback: alle /c/-links op de pagina
                 links = await page.eval_on_selector_all(
                     'a[href*="/c/"]',
                     'els => [...new Set(els.map(el => el.href))]',
                 )
 
             Actor.log.info(f'{len(links)} bedrijven gevonden op deze pagina')
-            for link in links:
-                await context.add_requests([{'url': link, 'label': LABEL_DETAIL}])
+            await context.add_requests(
+                [Request.from_url(link, label=LABEL_DETAIL) for link in links]
+            )
 
-            # Paginering — zoek naar "volgende pagina" link
             next_link = await page.query_selector(
                 'a[rel="next"], a.pagination__next, a[aria-label="Volgende"], .pagination a:last-child'
             )
@@ -75,9 +70,9 @@ async def main() -> None:
                     next_url = f'https://nl.kompass.com{next_url}'
                 if next_url:
                     Actor.log.info(f'Volgende pagina: {next_url}')
-                    await context.add_requests([{'url': next_url, 'label': LABEL_LISTING}])
+                    await context.add_requests([Request.from_url(next_url, label=LABEL_LISTING)])
 
-        @crawler.router.handler(LABEL_DETAIL)
+        @crawler.router.handler(label=LABEL_DETAIL)
         async def detail_handler(context: PlaywrightCrawlingContext) -> None:
             page = context.page
             url = context.request.url
@@ -112,26 +107,21 @@ async def main() -> None:
             country_val = await text(
                 '[itemprop="addressCountry"], .address-country, .kpdn-Address-country'
             )
-            phone = await text(
-                '[itemprop="telephone"], .tel, a[href^="tel:"]'
-            )
+            phone = await text('[itemprop="telephone"], .tel, a[href^="tel:"]')
             if phone.startswith('tel:'):
                 phone = phone[4:]
 
-            # Website: gebruik itemprop of kpdn-class; verberg tracking-redirects
             website = await attr(
                 'a[itemprop="url"], a.kpdn-Company-website, a[data-cy="company-website"]',
                 'href',
             )
 
-            # E-mail: Kompass verbergt e-mails achter een knop; probeer eerst directe mailto
             email = ''
             email_el = await page.query_selector('a[href^="mailto:"]')
             if email_el:
                 href = await email_el.get_attribute('href') or ''
                 email = href.replace('mailto:', '').split('?')[0].strip()
             else:
-                # Probeer de "Toon e-mailadres" knop te klikken
                 reveal_btn = await page.query_selector(
                     'button[data-cy="reveal-email"], button.reveal-email, [class*="showEmail"]'
                 )
@@ -175,7 +165,6 @@ async def main() -> None:
                 'revenue': revenue,
             })
 
-        # Bouw de start-URL op basis van de invoer
         params: dict[str, str] = {}
         if search_query:
             params['text'] = search_query
@@ -184,7 +173,7 @@ async def main() -> None:
         start_url = SEARCH_BASE + ('?' + urlencode(params) if params else '')
         Actor.log.info(f'Start URL: {start_url}')
 
-        await crawler.run([{'url': start_url, 'label': LABEL_LISTING}])
+        await crawler.run([Request.from_url(start_url, label=LABEL_LISTING)])
 
 
 if __name__ == '__main__':
