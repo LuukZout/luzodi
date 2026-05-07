@@ -1,26 +1,26 @@
 {
-  "title": "Kompass B2B Contact Scraper Input",
+  "title": "B2BStars / Kompass Company Scraper Input",
   "type": "object",
   "schemaVersion": 1,
   "properties": {
     "searchQuery": {
-      "title": "Zoekterm",
+      "title": "Search query",
       "type": "string",
-      "description": "Trefwoord, sector of bedrijfsnaam (bijv. 'software', 'bouw', 'accountant').",
+      "description": "Keyword, sector, or company name to search for (e.g. 'software', 'construction', 'accountant').",
       "editor": "textfield",
       "default": ""
     },
     "countries": {
-      "title": "Landen (ISO-codes)",
+      "title": "Countries (ISO codes)",
       "type": "string",
-      "description": "Komma-gescheiden ISO-landcodes (bijv. NL, NL,BE, DE).",
+      "description": "Comma-separated ISO country codes to filter results (e.g. NL, NL,BE, DE).",
       "editor": "textfield",
       "default": "NL"
     },
     "maxPages": {
-      "title": "Max pagina's",
+      "title": "Max pages",
       "type": "integer",
-      "description": "Maximum aantal zoekresultaat-pagina's om te crawlen.",
+      "description": "Maximum number of search result pages to crawl.",
       "default": 5
     }
   },

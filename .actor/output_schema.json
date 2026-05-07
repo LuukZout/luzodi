@@ -1,0 +1,13 @@
+{
+  "actorOutputSchemaVersion": 1,
+  "title": "Kompass B2B Contact Scraper output",
+  "description": "Each run produces a dataset of B2B company records scraped from b2bstars.com (Kompass partner). Each record contains the company name, profile URL, website, phone, email, address, city, country, industry sectors, and star rating. Phone numbers may be empty as they are gated behind the b2bstars paywall. Website is normalised to a full https:// URL where possible.",
+  "properties": {
+    "results": {
+      "type": "string",
+      "title": "Scraped companies",
+      "description": "JSON array of company objects. Each object has the following fields: companyName (string), url (b2bstars profile URL), website (company website URL), phone (phone number, may be empty), email (email address, may be empty), address (street address, may be empty), city (city name), country (country name), sectors (comma-separated industry sectors), rating (integer 0–5, Kompass star rating).",
+      "template": "{{links.apiDefaultDatasetUrl}}/items"
+    }
+  }
+}

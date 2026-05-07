@@ -1,9 +1,13 @@
 {
   "actorSpecification": 1,
-  "name": "kompass-scraper",
-  "title": "Kompass B2B Contact Scraper",
-  "description": "Scrapt bedrijfscontactgegevens van nl.kompass.com: naam, adres, telefoon, e-mail, website, sector en meer.",
+  "name": "b2bstars-kompass-scraper",
+  "title": "B2BStars / Kompass Company Scraper",
+  "description": "Scrape B2B company contact data from b2bstars.com (Kompass partner): name, address, phone, website, sectors, and more.",
   "version": "0.1",
   "input": "./input_schema.json",
-  "readme": "../README.md"
+  "readme": "../README.md",
+  "output": "./output_schema.json",
+  "storages": {
+    "dataset": "./dataset_schema.json"
+  }
 }

@@ -1,0 +1,89 @@
+{
+  "actorSpecification": 1,
+  "fields": {
+    "companyName": {
+      "title": "Company Name",
+      "type": "string",
+      "description": "Official registered name of the company."
+    },
+    "url": {
+      "title": "Profile URL",
+      "type": "string",
+      "description": "URL of the company profile on b2bstars.com."
+    },
+    "website": {
+      "title": "Website",
+      "type": "string",
+      "description": "Company website URL."
+    },
+    "phone": {
+      "title": "Phone",
+      "type": "string",
+      "description": "Company phone number (may be empty if hidden behind paywall)."
+    },
+    "email": {
+      "title": "Email",
+      "type": "string",
+      "description": "Company email address."
+    },
+    "address": {
+      "title": "Address",
+      "type": "string",
+      "description": "Company street address."
+    },
+    "city": {
+      "title": "City",
+      "type": "string",
+      "description": "City where the company is located."
+    },
+    "country": {
+      "title": "Country",
+      "type": "string",
+      "description": "Country where the company is located."
+    },
+    "sectors": {
+      "title": "Sectors",
+      "type": "string",
+      "description": "Comma-separated list of industry sectors."
+    },
+    "rating": {
+      "title": "Rating",
+      "type": "integer",
+      "description": "Star rating (0–5) from the Kompass profile."
+    }
+  },
+  "views": {
+    "overview": {
+      "title": "Results",
+      "transformation": {
+        "fields": [
+          "companyName",
+          "website",
+          "phone",
+          "email",
+          "city",
+          "country",
+          "sectors",
+          "rating",
+          "url",
+          "address"
+        ]
+      },
+      "display": {
+        "component": "table",
+        "properties": {
+          "companyName": { "label": "Company", "format": "text" },
+          "website":     { "label": "Website", "format": "link" },
+          "phone":       { "label": "Phone",   "format": "text" },
+          "email":       { "label": "Email",   "format": "text" },
+          "city":        { "label": "City",    "format": "text" },
+          "country":     { "label": "Country", "format": "text" },
+          "sectors":     { "label": "Sectors", "format": "text" },
+          "rating":      { "label": "Rating",  "format": "number" },
+          "url":         { "label": "Profile", "format": "link" },
+          "address":     { "label": "Address", "format": "text" }
+        }
+      }
+    }
+  }
+}

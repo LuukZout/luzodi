@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import re
+from datetime import timedelta
 from urllib.parse import urlencode
 
 from apify import Actor
@@ -33,6 +35,7 @@ async def main() -> None:
             proxy_configuration=proxy_configuration,
             max_request_retries=5,
             max_session_rotations=15,
+            request_handler_timeout=timedelta(minutes=10),
             concurrency_settings=ConcurrencySettings(
                 min_concurrency=1,
                 max_concurrency=1,
@@ -50,50 +53,97 @@ async def main() -> None:
             Actor.log.info(f'Pagina: {context.request.url}')
 
             try:
-                await page.wait_for_selector('li.ant-list-item', timeout=30_000)
+                await page.wait_for_selector('li.ant-list-item h1.ant-typography', timeout=30_000)
             except Exception:
                 content_preview = (await page.content())[:500]
                 Actor.log.warning(f'Geen lijst gevonden. Pagina preview: {content_preview}')
                 return
 
+            # Extract listing data (name, city, country, sectors, rating)
             companies = await page.evaluate('''() => {
                 const items = document.querySelectorAll("li.ant-list-item");
                 return Array.from(items).map(item => {
                     const nameEl = item.querySelector("h1.ant-typography");
                     if (!nameEl) return null;
 
-                    const allTags = item.querySelectorAll("span.ant-tag:not(.ant-tag-has-color)");
+                    // All tags: [0]=country, [1]=city, [2:]=sectors
+                    const allTags = Array.from(item.querySelectorAll("span.ant-tag"));
                     const country = allTags.length > 0 ? allTags[0].textContent.trim() : "";
                     const city    = allTags.length > 1 ? allTags[1].textContent.trim() : "";
+                    const sectors = allTags.slice(2).map(t => t.textContent.trim()).filter(Boolean).join(", ");
+                    const stars   = item.querySelectorAll("li.ant-rate-star-full").length;
 
-                    const linkEl = item.querySelector("[data-testid='companyRedirector'] a, .testSponsoredRedirector a, a[href*='/company/']");
-                    let url = linkEl ? linkEl.href : "";
-                    if (!url) {
-                        const clickable = item.querySelector("[style*='cursor: pointer']");
-                        if (clickable) {
-                            const anchor = clickable.closest("a") || clickable.querySelector("a");
-                            if (anchor) url = anchor.href;
-                        }
-                    }
-
-                    const descEl = item.querySelector("p, [class*='description'], [class*='summary']");
-                    const description = descEl ? descEl.textContent.trim() : "";
-
-                    const stars = item.querySelectorAll("li.ant-rate-star:not(.ant-rate-star-zero)").length;
-
-                    return { companyName: nameEl.textContent.trim(), url, city, country, description, rating: stars };
+                    return { companyName: nameEl.textContent.trim(), city, country, sectors, rating: stars, url: "" };
                 }).filter(Boolean);
             }''')
-
             Actor.log.info(f'{len(companies)} bedrijven gevonden')
-            if companies:
-                await Actor.push_data(companies)
 
+            # Click each company to capture profile URL via SPA navigation.
+            # Match by name each time since DOM order can change after go_back.
+            listing_url = context.request.url
+            for company in companies:
+                name = company['companyName']
+                try:
+                    await page.wait_for_selector('li.ant-list-item h1.ant-typography', timeout=10_000)
+
+                    # Find the h1 that matches this company by text
+                    target_h1 = None
+                    for li in await page.query_selector_all('li.ant-list-item'):
+                        h1 = await li.query_selector('h1.ant-typography')
+                        if h1 and (await h1.inner_text()).strip() == name:
+                            target_h1 = h1
+                            break
+
+                    if not target_h1:
+                        Actor.log.warning(f'  {name}: niet gevonden in DOM, overgeslagen')
+                        continue
+
+                    pre_url = page.url
+                    await target_h1.click()
+                    await page.wait_for_function(
+                        f'window.location.href !== {repr(pre_url)}',
+                        timeout=10_000,
+                    )
+                    company['url'] = page.url.split('?')[0]
+
+                    # Extract contact data from the detail page while we're here
+                    await page.wait_for_timeout(1500)
+                    contact = await page.evaluate('''() => {
+                        const CONTACT_FIELDS = ["website", "phone", "email", "address", "fax"];
+                        const result = {};
+                        for (const el of document.querySelectorAll("[data-track]")) {
+                            const track = el.dataset.track;
+                            if (CONTACT_FIELDS.includes(track)) {
+                                const text = el.textContent.trim();
+                                if (text && !result[track]) result[track] = text;
+                            }
+                        }
+                        // Normalise website to a full URL
+                        if (result.website && !result.website.startsWith("http")) {
+                            result.website = "https://" + result.website;
+                        }
+                        return result;
+                    }''')
+                    company.update(contact)
+                    Actor.log.info(f'  {name}: {company["url"]} | web={contact.get("website","")} tel={contact.get("phone","")}')
+
+                    await page.go_back(wait_until='domcontentloaded')
+
+                except Exception as e:
+                    Actor.log.warning(f'URL capture mislukt voor {name}: {e}')
+                    if page.url != listing_url:
+                        try:
+                            await page.go_back(wait_until='domcontentloaded')
+                        except Exception:
+                            await page.goto(listing_url, wait_until='domcontentloaded')
+
+            await Actor.push_data(companies)
+
+            # Pagination
             next_page_li = await page.query_selector('li.ant-pagination-next:not(.ant-pagination-disabled)')
             if next_page_li:
                 current_url = context.request.url
                 sep = '&' if '?' in current_url else '?'
-                import re
                 if re.search(r'[?&]page=(\d+)', current_url):
                     next_url = re.sub(r'([?&]page=)(\d+)', lambda m: m.group(1) + str(int(m.group(2)) + 1), current_url)
                 else:
